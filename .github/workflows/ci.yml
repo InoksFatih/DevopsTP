@@ -1,4 +1,4 @@
-name: Python Flask CI
+name: Python Flask CI/CD
 
 on:
   push:
@@ -10,18 +10,39 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - run: pytest
+  
+  # --- DÉBUT DU NOUVEAU JOB ---
+  build-and-push-docker:
+    # Ce job ne démarre que si `build-and-test` a réussi
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Nous avons besoin de permissions spéciales pour pousser un package
+    permissions:
+      contents: read
+      packages: write
 
-      - name: Run tests with pytest
-        run: pytest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
